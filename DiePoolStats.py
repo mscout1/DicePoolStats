@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-
-"""
-This is a huge monte carlo simulation I wrote for fun in 2009. It simulates
-a pool of D10s being rolled and evaluated acording to a modified version
-of White Wolf's Old "World Of Darkness" rules.
-
-It reports the results of getting 'S' successes, of getting at least S successes,
-and of botching, given an Dice Pool of size 'p' and a Difficulty of 'd' for a
-range of Ds and Ps .
-
-Since this was a personal hobby project, the code is prettty crude and the variable names
-are a bit arbitrary. I included it because it is an example of performance aware code.
-(My first version ran out of memory and crashed. This version crunches as it goes instead of
-  trying to generate all data, then evaluate.) Running this for 1 billion trials took a couple
-of days, spread over 2 computers.
-"""
 import collections
 import dataclasses
 import itertools
@@ -24,12 +8,14 @@ from pprint import pprint
 
 from beautifultable import BeautifulTable
 
+DIE_FACES = 10
+
 BOTCH = "BOTCH"
 EXACT = "EXACT"
 FAIL = 0
 Max_Pool = 7
 min_difficulty = 3
-max_difficulty = 10
+max_difficulty = DIE_FACES
 difficulty_band = list(range(min_difficulty, max_difficulty))
 
 
@@ -50,22 +36,7 @@ def eval_roll(dice, difficulty):
     return success
 
 
-def roll(pool_size):
-    """
-    Generates a single roll of a pool of D10s
-    """
-    dice = [random.randint(1, 10) for _ in range(pool_size)]
-    reroll10s(dice)
-    return dice
-
-
-def reroll10s(dice, roll=roll):
-    tens = dice.count(10)
-    if (tens):
-        dice.extend([d for d in roll(tens) if d > 1])
-
-
-def eval_for_all_difficulys(rolled_pool):
+def eval_for_all_difficulties(rolled_pool):
     return {difficulty: eval_roll(rolled_pool, difficulty)
             for difficulty
             in difficulty_band}
@@ -80,18 +51,31 @@ def pool_generator(pool_size, n):
 
 def random_pool_generator(pool_size, n):
     """
-    yealds n dice pool results, of size p, evaluated for all difficulys
+    yields n dice pool results, of size p, evaluated for all difficulties
     """
+    def roll(pool_size):
+        """
+        Generates a single roll of a pool of D10s
+        """
+        dice = [random.randint(1, DIE_FACES) for _ in range(pool_size)]
+        reroll10s(dice)
+        return dice
+
+    def reroll10s(dice):
+        tens = dice.count(DIE_FACES)
+        if (tens):
+            dice.extend([d for d in roll(tens) if d > 1])
+
     for x in range(n):
-        yield eval_for_all_difficulys(roll(pool_size))
+        yield eval_for_all_difficulties(roll(pool_size))
 
 
 def all_pools_generator(pool_size):
     """
-    yealds n dice pool results, of size p, evaluated for all difficulys
+    yield all dice pool results, of size p, evaluated for all difficulys
     """
-    for roll in itertools.product(range(1, 10 + 1), repeat=pool_size):
-        yield eval_for_all_difficulys(roll)
+    for roll in itertools.product(range(1, DIE_FACES + 1), repeat=pool_size):
+        yield eval_for_all_difficulties(roll)
 
 
 @dataclasses.dataclass
@@ -163,7 +147,7 @@ def print_pool(pool_stats_generator, pool_size):
 
 def print_all(highpool, n):
     for pool_size in range(1, highpool + 1):
-        pool_stats_generator = munch(all_pools_generator(pool_size))
+        pool_stats_generator = munch(pool_generator(pool_size, EXACT))
         print_pool(pool_stats_generator, pool_size)
         print("++++++++++++++++++++++++++++++++++++++++")
 
@@ -179,6 +163,5 @@ def print_summary(quicktable):
 
 
 if __name__ == '__main__':
-    pprint(QuickStats.quicktable)
     print_all(Max_Pool, BOTCH)
     print_summary(QuickStats.quicktable)
